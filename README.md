@@ -1,2 +1,2 @@
 # HYCKeelboatCourses2026
-Hyc Keelboat ourse Cards Online Viewer
+Hyc Keelboat Course Cards Online Viewer
