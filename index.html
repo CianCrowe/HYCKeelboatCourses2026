@@ -1,0 +1,1950 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="HYC Course">
+<meta name="theme-color" content="#b71c1c">
+<title>HYC Race Course</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  // Fallback CDN — runs synchronously: if unpkg failed, write a blocking
+  // <script> tag so the next inline script still sees window.L defined.
+  if (typeof L === "undefined") {
+    document.write(
+      '<script src="https:\/\/cdn.jsdelivr.net\/npm\/leaflet@1.9.4\/dist\/leaflet.js"><\/script>'
+    );
+  }
+</script>
+<style>
+  :root {
+    --bg: #f2f2f7;
+    --bg-card: #ffffff;
+    --bg-elev: #ffffff;
+    --bg-grouped: #f2f2f7;
+    --text: #1c1c1e;
+    --text-secondary: #6e6e73;
+    --text-tertiary: #aeaeb2;
+    --separator: rgba(60,60,67,0.18);
+    --accent: #007aff;
+    --accent-2: #0a2540;
+    --port: #ff3b30;
+    --starboard: #34c759;
+    --gate: #ff9500;
+    --sea: #cfe6f0;
+    --sea-deep: #8fc6dc;
+    --land: #d8e8c2;
+    --land-edge: #a3b884;
+    --pier: #b8b8b8;
+    --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #000000;
+      --bg-card: #1c1c1e;
+      --bg-elev: #2c2c2e;
+      --bg-grouped: #000000;
+      --text: #ffffff;
+      --text-secondary: #ebebf599;
+      --text-tertiary: #ebebf580;
+      --separator: rgba(84,84,88,0.65);
+      --sea: #1b3a4a;
+      --sea-deep: #0f2733;
+      --land: #2c3a1f;
+      --land-edge: #5a6e3a;
+      --pier: #3a3a3c;
+      --shadow: 0 1px 3px rgba(0,0,0,0.4);
+    }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0;
+    height: 100%;
+    background: var(--bg-grouped);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 17px;
+    -webkit-font-smoothing: antialiased;
+    overscroll-behavior: none;
+  }
+  body {
+    display: flex; flex-direction: column;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  .nav {
+    position: sticky; top: 0; z-index: 10;
+    background: rgba(248,248,250,0.8);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    border-bottom: 0.5px solid var(--separator);
+    padding: 10px 16px 12px;
+  }
+  @media (prefers-color-scheme: dark) {
+    .nav { background: rgba(28,28,30,0.85); }
+  }
+  .nav-title {
+    font-size: 17px; font-weight: 600; text-align: center;
+    letter-spacing: -0.4px;
+  }
+  .nav-sub {
+    font-size: 12px; text-align: center; color: var(--text-secondary);
+    margin-top: 2px;
+  }
+  .container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 16px calc(env(safe-area-inset-bottom) + 24px);
+    -webkit-overflow-scrolling: touch;
+  }
+  .section-header {
+    font-size: 13px;
+    font-weight: 400;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    color: var(--text-secondary);
+    padding: 12px 4px 6px;
+  }
+  .card {
+    background: var(--bg-card);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .card + .card { margin-top: 14px; }
+
+  /* Segmented control */
+  .seg {
+    display: flex; gap: 0;
+    background: rgba(120,120,128,0.16);
+    border-radius: 9px;
+    padding: 2px;
+  }
+  .seg-btn {
+    flex: 1;
+    padding: 6px 8px;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 500;
+    border: none; background: transparent;
+    color: var(--text);
+    border-radius: 7px;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.05s;
+  }
+  .seg-btn.active {
+    background: var(--bg-card);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+  }
+  .seg-btn:active { transform: scale(0.97); }
+
+  /* Course card chooser */
+  .cc-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    padding: 12px;
+  }
+  .cc-tile {
+    background: var(--bg-elev);
+    border: 1.5px solid transparent;
+    border-radius: 12px;
+    padding: 12px 10px;
+    text-align: left;
+    cursor: pointer;
+    color: var(--text);
+    font: inherit;
+    transition: transform 0.05s, border-color 0.15s;
+  }
+  .cc-tile:active { transform: scale(0.98); }
+  .cc-tile.active {
+    border-color: var(--accent);
+    background: rgba(0,122,255,0.08);
+  }
+  .cc-tile-id {
+    display: inline-block;
+    background: var(--accent);
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-bottom: 6px;
+  }
+  .cc-tile-name { font-size: 13px; font-weight: 600; line-height: 1.2; }
+  .cc-tile-meta { font-size: 11px; color: var(--text-secondary); margin-top: 3px; }
+
+  .cc-tile.ccTUE .cc-tile-id { background: #ff3b30; }
+  .cc-tile.ccWED .cc-tile-id { background: #ff9500; }
+  .cc-tile.ccPIER .cc-tile-id { background: #007aff; }
+
+  /* Wind compass */
+  .compass-wrap {
+    padding: 14px 14px 8px;
+    display: grid;
+    grid-template-columns: 130px 1fr;
+    gap: 16px;
+    align-items: center;
+  }
+  .compass {
+    width: 130px;
+    aspect-ratio: 1;
+    margin: 0;
+    position: relative;
+  }
+  .compass svg { width: 100%; height: 100%; }
+  .wind-readout {
+    display: flex; flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+  }
+  .wind-deg-big {
+    font-size: 36px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -1.2px;
+    line-height: 1;
+    color: var(--text);
+  }
+  .wind-letter-sub {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: -2px;
+  }
+  .wind-letter-sub b {
+    color: var(--accent);
+    font-weight: 700;
+  }
+  .wind-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 28px;
+    background: transparent;
+    margin: 4px 0 0;
+    cursor: pointer;
+    padding: 0;
+  }
+  .wind-slider:focus { outline: none; }
+  .wind-slider::-webkit-slider-runnable-track {
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(120,120,128,0.20);
+  }
+  .wind-slider::-moz-range-track {
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(120,120,128,0.20);
+    border: none;
+  }
+  .wind-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 22px; height: 22px;
+    background: var(--accent);
+    border-radius: 50%;
+    border: 2px solid var(--bg-card);
+    margin-top: -8px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+  }
+  .wind-slider::-moz-range-thumb {
+    width: 22px; height: 22px;
+    background: var(--accent);
+    border-radius: 50%;
+    border: 2px solid var(--bg-card);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+  }
+  .wind-list {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 3px;
+    padding: 0 10px 12px;
+    font-size: 10px;
+  }
+
+  /* Course Wind summary (pills card header) */
+  .cw-summary {
+    display: flex; align-items: center;
+    gap: 14px;
+    padding: 14px 16px 10px;
+  }
+  .cw-letter {
+    width: 56px; height: 56px;
+    border-radius: 28px;
+    background: var(--accent);
+    color: white;
+    font-size: 26px;
+    font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 2px 6px rgba(0,122,255,0.25);
+  }
+  .cw-info { flex: 1; min-width: 0; }
+  .cw-deg {
+    font-size: 22px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.5px;
+    line-height: 1.05;
+    color: var(--text);
+  }
+  .cw-name {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+  .cw-help {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    margin-top: 4px;
+  }
+
+  /* Section header subtitle (the small grey explanation) */
+  .section-header .sh-sub {
+    font-weight: 400;
+    color: var(--text-tertiary);
+    text-transform: none;
+    letter-spacing: 0;
+    margin-left: 4px;
+  }
+
+  /* Tide tile */
+  .tide-summary {
+    display: flex; align-items: baseline; flex-wrap: wrap;
+    gap: 12px; padding: 14px 16px 4px;
+  }
+  .tide-loading {
+    padding: 4px 0;
+    font-size: 13px; color: var(--text-secondary);
+  }
+  .tide-error {
+    padding: 14px 16px;
+    font-size: 13px; color: var(--text-secondary);
+  }
+  .tide-error a { color: var(--accent); text-decoration: none; }
+  .tide-now-val {
+    font-size: 32px; font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -1px;
+    line-height: 1;
+    color: var(--text);
+  }
+  .tide-now-state {
+    font-size: 12px; color: var(--text-secondary);
+    margin-top: 4px;
+    line-height: 1.45;
+  }
+  .tide-state-rising  { color: var(--starboard); font-weight: 700; }
+  .tide-state-falling { color: var(--port);      font-weight: 700; }
+  .tide-chart-wrap {
+    padding: 6px 10px 8px;
+  }
+  .tide-chart-wrap svg {
+    width: 100%; height: 110px; display: block;
+  }
+  .tide-events {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    border-top: 0.5px solid var(--separator);
+  }
+  .tide-events:empty { display: none; }
+  .tide-event {
+    padding: 10px 14px;
+    border-right: 0.5px solid var(--separator);
+  }
+  .tide-event:nth-child(2n) { border-right: none; }
+  .tide-event:nth-child(n+3) { border-top: 0.5px solid var(--separator); }
+  .tide-event-type {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    font-weight: 700;
+    color: var(--text-tertiary);
+  }
+  .tide-event-type.hw { color: var(--accent); }
+  .tide-event-type.lw { color: var(--gate); }
+  .tide-event-time {
+    font-size: 18px; font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.3px;
+    margin-top: 2px;
+  }
+  .tide-event-height {
+    font-size: 11px; color: var(--text-secondary);
+    margin-top: 1px;
+  }
+
+  /* Wind shift indicator under slider */
+  .shift-indicator {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+    line-height: 1.4;
+  }
+  .shift-indicator .shift-val {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .shift-indicator .veered { color: var(--starboard); }
+  .shift-indicator .backed { color: var(--port);      }
+  .shift-indicator.aligned { color: var(--text-tertiary); }
+  .wind-pill {
+    border: none; background: transparent;
+    padding: 4px 2px;
+    border-radius: 7px;
+    color: var(--text);
+    font: inherit;
+    cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+  }
+  .wind-pill:active { background: rgba(120,120,128,0.16); }
+  .wind-pill .letter {
+    width: 22px; height: 22px;
+    border-radius: 11px;
+    background: rgba(120,120,128,0.16);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 11px;
+  }
+  .wind-pill.active { background: rgba(0,122,255,0.12); }
+  .wind-pill.active .letter { background: var(--accent); color: white; }
+  .wind-pill .deg { color: var(--text-secondary); font-variant-numeric: tabular-nums; font-size: 9px; }
+
+  /* Course number row */
+  .num-row {
+    display: flex;
+    gap: 8px;
+    padding: 12px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .num-row::-webkit-scrollbar { display: none; }
+  .num-btn {
+    flex: 0 0 auto;
+    width: 44px; height: 44px;
+    border-radius: 12px;
+    border: 1.5px solid var(--separator);
+    background: var(--bg-elev);
+    font: inherit; font-weight: 600; font-size: 17px;
+    color: var(--text);
+    cursor: pointer;
+    transition: transform 0.05s;
+  }
+  .num-btn:active { transform: scale(0.95); }
+  .num-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+  }
+  .num-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  /* Map */
+  .map-card {
+    padding: 0;
+    overflow: hidden;
+  }
+  .map-wrap {
+    position: relative;
+    background: var(--sea);
+    aspect-ratio: 0.85;
+    width: 100%;
+  }
+  .map-wrap #map { width: 100%; height: 100%; display: block; background: var(--sea); }
+  .leaflet-container { font-family: inherit; background: var(--sea); }
+  .leaflet-tile-pane { filter: saturate(1.05); }
+  @media (prefers-color-scheme: dark) {
+    .leaflet-tile-pane { filter: brightness(0.7) invert(0.95) saturate(0.6) hue-rotate(180deg); }
+  }
+  /* Mark pin */
+  .mark-pin {
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    color: white;
+    font-weight: 700;
+    font-size: 11px;
+    display: flex; align-items: center; justify-content: center;
+    border: 2px solid white;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+    box-sizing: border-box;
+    transform: translate(-12px,-12px);
+  }
+  .mark-pin.unsel { background: #8e8e93; opacity: 0.78; width: 18px; height: 18px;
+                    transform: translate(-9px,-9px); font-size: 9px; border-width: 1.5px; }
+  .mark-pin.port      { background: #ff3b30; }
+  .mark-pin.starboard { background: #34c759; }
+  .mark-pin.start     { background: #0a2540; }
+  .mark-pin.finish    { background: #5856d6; }
+  .mark-pin.sel       { width: 28px; height: 28px; transform: translate(-14px,-14px); font-size: 12px; }
+  .mark-label-tip {
+    transform: translate(14px, -8px);
+    background: rgba(255,255,255,0.92);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    color: #1c1c1e;
+    white-space: nowrap;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+    pointer-events: none;
+  }
+  @media (prefers-color-scheme: dark) {
+    .mark-label-tip { background: rgba(28,28,30,0.92); color: #fff; }
+  }
+  .leaflet-popup-content { font-family: inherit; font-size: 13px; line-height: 1.35; margin: 8px 12px; }
+  .leaflet-popup-content b { font-size: 14px; }
+  .leg-arrow {
+    color: #007aff;
+    font-size: 14px;
+    text-shadow: 0 0 4px rgba(255,255,255,0.95), 0 0 4px rgba(255,255,255,0.95);
+    pointer-events: none;
+    transform: translate(-7px,-9px);
+  }
+  /* Layer switcher */
+  .layer-switch {
+    display: flex;
+    padding: 8px 10px;
+    gap: 6px;
+    border-bottom: 0.5px solid var(--separator);
+  }
+  .layer-switch .seg { flex: 1; padding: 0; }
+  .layer-switch .seg-btn { font-size: 12px; padding: 5px 4px; }
+  .map-legend {
+    display: flex; gap: 14px; padding: 10px 14px;
+    font-size: 12px; color: var(--text-secondary);
+    border-top: 0.5px solid var(--separator);
+    flex-wrap: wrap;
+  }
+  .map-legend .key {
+    display: inline-flex; align-items: center; gap: 5px;
+  }
+  .map-legend .swatch {
+    width: 10px; height: 10px; border-radius: 50%;
+    display: inline-block;
+  }
+  .swatch.port { background: var(--port); }
+  .swatch.starboard { background: var(--starboard); }
+  .swatch.unsel { background: #c7c7cc; }
+
+  /* Mark list */
+  .list { padding: 0; }
+  .list-row {
+    display: grid;
+    grid-template-columns: 30px 32px 1fr auto;
+    gap: 10px;
+    align-items: center;
+    padding: 12px 14px;
+    border-bottom: 0.5px solid var(--separator);
+    min-height: 56px;
+  }
+  .list-row:last-child { border-bottom: none; }
+  .list-num {
+    width: 26px; height: 26px;
+    border-radius: 13px;
+    background: rgba(120,120,128,0.16);
+    color: var(--text);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700;
+  }
+  .list-num.start { background: var(--accent-2); color: white; }
+  .list-num.finish { background: #5856d6; color: white; }
+  .list-row .badge {
+    width: 28px; height: 28px; border-radius: 14px;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: white; font-weight: 700; font-size: 13px;
+    flex-shrink: 0;
+  }
+  .badge.port { background: var(--port); }
+  .badge.starboard { background: var(--starboard); }
+  .badge.start { background: var(--accent-2); }
+  .badge.finish { background: #5856d6; }
+  .list-name { font-size: 15px; font-weight: 500; line-height: 1.15; }
+  .list-meta { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+  .list-twa {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+    display: flex; align-items: center; gap: 5px;
+    flex-wrap: wrap;
+  }
+  .list-twa .pos-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+  }
+  .list-twa .pos-name {
+    font-weight: 600;
+    color: var(--text);
+  }
+  .list-twa .twa-num {
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+  }
+  .list-twa .tack-stbd { color: var(--starboard); font-weight: 600; }
+  .list-twa .tack-port { color: var(--port);      font-weight: 600; }
+  .list-twa .sep { color: var(--text-tertiary); }
+  .list-side {
+    text-align: right;
+    font-size: 12px; color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+  }
+  .list-side .deg {
+    font-size: 17px; color: var(--text); font-weight: 600;
+    display: block;
+    line-height: 1.1;
+  }
+
+  .summary {
+    padding: 12px 14px;
+    display: flex; gap: 16px;
+    border-bottom: 0.5px solid var(--separator);
+    font-size: 13px;
+  }
+  .summary .stat { flex: 1; }
+  .summary .stat-label {
+    color: var(--text-secondary); font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.3px;
+  }
+  .summary .stat-val {
+    font-size: 22px; font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    margin-top: 2px;
+    letter-spacing: -0.5px;
+  }
+
+  .footnote {
+    color: var(--text-secondary);
+    font-size: 12px;
+    padding: 14px 16px 0;
+    line-height: 1.4;
+  }
+
+  /* Pulse for next mark */
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* SVG mark labels */
+  .mark-label {
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 9px;
+    font-weight: 600;
+    fill: var(--text);
+    paint-order: stroke;
+    stroke: var(--sea);
+    stroke-width: 2.5px;
+    stroke-linejoin: round;
+  }
+  .mark-letter {
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 8px;
+    font-weight: 700;
+    fill: white;
+    text-anchor: middle;
+    dominant-baseline: central;
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+
+<div class="nav">
+  <div class="nav-title">Howth Race Course</div>
+  <div class="nav-sub" id="nav-sub">HYC Keelboat 2026</div>
+</div>
+
+<div class="container">
+
+  <div class="section-header">Course Card</div>
+  <div class="card">
+    <div class="cc-grid" id="cc-grid"></div>
+  </div>
+
+  <div class="section-header">Course Wind <span class="sh-sub">— picks which course is shown</span></div>
+  <div class="card">
+    <div class="cw-summary">
+      <div class="cw-letter" id="cw-letter">A</div>
+      <div class="cw-info">
+        <div class="cw-deg" id="cw-deg">000°</div>
+        <div class="cw-name" id="cw-name">North</div>
+        <div class="cw-help">Tap a letter for the wind the course was set for.</div>
+      </div>
+    </div>
+    <div class="wind-list" id="wind-list"></div>
+  </div>
+
+  <div class="section-header">Current Wind <span class="sh-sub">— sets True Wind Angle for each leg</span></div>
+  <div class="card">
+    <div class="compass-wrap">
+      <div class="compass" id="compass"></div>
+      <div class="wind-readout">
+        <div class="wind-deg-big" id="wind-deg-big">000°</div>
+        <div class="wind-letter-sub" id="wind-letter-sub"></div>
+        <input type="range" id="wind-slider" class="wind-slider"
+               min="0" max="359" step="1" value="0"
+               aria-label="Current wind direction in degrees">
+        <div class="shift-indicator" id="shift-indicator"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-header">Tide <span class="sh-sub">— Howth Harbour</span></div>
+  <div class="card">
+    <div class="tide-summary" id="tide-summary">
+      <div class="tide-loading">Loading tide data…</div>
+    </div>
+    <div class="tide-chart-wrap" id="tide-chart-wrap" style="display:none;">
+      <svg id="tide-chart" viewBox="0 0 320 110" preserveAspectRatio="none"></svg>
+    </div>
+    <div class="tide-events" id="tide-events"></div>
+  </div>
+
+  <div class="section-header">Course Number</div>
+  <div class="card">
+    <div class="num-row" id="num-row"></div>
+  </div>
+
+  <div class="section-header" id="course-header">Course</div>
+  <div class="card map-card">
+    <div class="summary" id="summary"></div>
+    <div class="layer-switch">
+      <div class="seg" id="layer-seg"></div>
+    </div>
+    <div class="map-wrap">
+      <div id="map"></div>
+    </div>
+    <div class="map-legend">
+      <span class="key"><span class="swatch port"></span>Port (red)</span>
+      <span class="key"><span class="swatch starboard"></span>Starboard (green)</span>
+      <span class="key"><span class="swatch unsel"></span>Other marks</span>
+    </div>
+  </div>
+
+  <div class="section-header">Mark-by-Mark</div>
+  <div class="card list" id="mark-list"></div>
+
+  <div class="footnote" id="footnote"></div>
+</div>
+
+<script>
+/* =========================================================================
+   HYC MARK DATA — Lat/Long from "2026 Technical Sheet for Course Cards Rev 0"
+   Lat = 53° + minutes,  Long = -(6° + minutes)
+   ========================================================================= */
+const MARKS = {
+  A: { name: "Apex",          color: "black",  latMin: 26.76, lngMin: 3.26 },
+  B: { name: "Balscadden",    color: "orange", latMin: 23.30, lngMin: 3.26 },
+  C: { name: "Cush",          color: "black",  latMin: 24.61, lngMin: 5.45 },
+  D: { name: "Dunbo",         color: "yellow", latMin: 24.73, lngMin: 3.85 },
+  E: { name: "East",          color: "black",  latMin: 26.00, lngMin: 2.20 },
+  F: { name: "Finish",        color: "orange", latMin: 23.95, lngMin: 3.95 }, // approx between Ireland's Eye & East Pier
+  G: { name: "Garbh",         color: "black",  latMin: 25.00, lngMin: 2.32 },
+  H: { name: "Hub",           color: "black",  latMin: 25.71, lngMin: 4.43 },
+  I: { name: "Island",        color: "black",  latMin: 24.70, lngMin: 4.36 },
+  J: { name: "Thulla",        color: "black",  latMin: 23.80, lngMin: 3.40 },
+  K: { name: "Stack",         color: "black",  latMin: 24.60, lngMin: 3.11 },
+  O: { name: "Osprey",        color: "orange", latMin: 25.41, lngMin: 3.52 },
+  P: { name: "Portmarnock",   color: "black",  latMin: 25.63, lngMin: 5.80 },
+  Q: { name: "Rowan Rocks",   color: "IALA blk", latMin: 23.88, lngMin: 3.22 },
+  R: { name: "South Rowan",   color: "IALA grn", latMin: 23.78, lngMin: 3.85 },
+  S: { name: "Spit",          color: "black",  latMin: 24.35, lngMin: 4.48 },
+  U: { name: "Ulysses",       color: "orange", latMin: 26.22, lngMin: 4.97 },
+  V: { name: "Viceroy",       color: "orange", latMin: 25.12, lngMin: 4.78 },
+  W: { name: "West",          color: "black",  latMin: 24.96, lngMin: 6.07 },
+  X: { name: "Xebec",         color: "black",  latMin: 23.83, lngMin: 4.41 },
+  Y: { name: "Ireland's Eye", color: "land",   latMin: 24.80, lngMin: 3.80 }, // approx centre, used as a passing/rounding mark
+  Z: { name: "Zephyr",        color: "black",  latMin: 24.20, lngMin: 4.05 }  // inflatable, set upwind of start line
+};
+
+// Convert decimal-minutes to decimal degrees
+for (const k in MARKS) {
+  const m = MARKS[k];
+  m.lat = 53 + m.latMin / 60;
+  m.lng = -(6 + m.lngMin / 60);
+  m.id  = k;
+}
+
+/* =========================================================================
+   COURSE CARDS — parsed from the HYC Keelboat 2026 Course Cards (Rev 0)
+   Format: each course is a string of single-letter mark IDs.
+     We expand each letter to "<id>p" (port rounding) by default, except for
+     the marks designated GREEN/IALA on the tech sheet, which are starboard:
+     Y (Ireland's Eye) and R (South Rowan) are STARBOARD. All others PORT.
+     Brackets [X] mark a passing-only mark in the Wednesday card — we treat
+     these the same as a port rounding for plotting purposes.
+   ========================================================================= */
+
+// Wind letters used by Tuesday & Wednesday Committee Vessel cards (20° steps).
+const CV_WIND_LETTERS = ["A","B","C","D","E","F","G","H","J","K","L","M","N","P","Q","R","S","T"];
+const CV_WIND_DEGREES = {
+  A:0,   B:20,  C:40,  D:60,  E:80,  F:100, G:120, H:140, J:160,
+  K:180, L:200, M:220, N:240, P:260, Q:280, R:300, S:320, T:340
+};
+
+// Pier Course-Board uses 2-digit "course numbers" rather than letters; each
+// corresponds to a wind direction in 15° steps. The operator displays one of
+// these 2-digit numbers on the pier board.
+const PIER_WIND_LETTERS = [
+  "00","01","03","04","06","07","09","10","12","13","15","16",
+  "18","19","21","22","24","25","27","28","30","31","33","34"
+];
+const PIER_WIND_DEGREES = {};
+PIER_WIND_LETTERS.forEach((L, i) => { PIER_WIND_DEGREES[L] = i * 15; });
+
+// Mark IDs that are passed/rounded to STARBOARD by default per the HYC tech
+// sheet (GREEN IALA marks). Others default to port.
+const STARBOARD_DEFAULT = new Set(["Y", "R"]);
+
+// Expand a compact course string like "ZWIHI" or "ZDUVH[V]" into tokens
+// like ["Zp", "Wp", "Ip", "Hp", "Ip"] — appending "p" for port, "s" for stbd.
+// Bracketed marks "[X]" are treated as a passing-only mark (rendered as port).
+function expandCourse(s) {
+  if (!s || !s.trim()) return [];
+  const out = [];
+  // Convert "[X]" → "X" (passing marks rendered same as rounding for plotting)
+  const cleaned = s.replace(/\[(.)\]/g, "$1");
+  for (const ch of cleaned) {
+    if (!/[A-Z]/.test(ch)) continue;
+    const side = STARBOARD_DEFAULT.has(ch) ? "s" : "p";
+    out.push(ch + side);
+  }
+  return out;
+}
+
+function parseCourseString(s) {
+  // If the string already looks tokenised (has spaces with side suffixes),
+  // keep it as-is; otherwise expand from the compact HYC form.
+  if (/\s/.test(s) && /[ps]\b/.test(s)) {
+    return s.trim().split(/\s+/);
+  }
+  return expandCourse(s);
+}
+
+// Active card's wind letter/degree maps — set when a card is loaded.
+let WIND_LETTERS = CV_WIND_LETTERS;
+let WIND_DEGREES = CV_WIND_DEGREES;
+
+// ─── HYC Course Cards ─────────────────────────────────────────────
+// Tuesday CV — start at Committee Vessel, finish in the Sound (or
+// upwind of last fixed mark when running a Line 30 / 40 course).
+const CC_TUE = {
+  id: "TUE", name: "Tuesday Committee Vessel", short: "Tuesday CV",
+  channel: "HYC · Tuesday", color: "#ff3b30",
+  startType: "cv", finishType: "upwind",
+  windLetters: CV_WIND_LETTERS,
+  windDegrees: CV_WIND_DEGREES,
+  numbers: [1,2,3,4],
+  notes: "Marks RED → rounded/passed to PORT. GREEN underlined → STARBOARD. Finish line in the Sound, unless Line 30 / 40 is used or the race is shortened at a course mark.",
+  courses: {
+    A: ["ZWIHI",     "ZWIHIV",    "ZWIHPWIV",    "ZWCPWPCPWC"],
+    B: ["ZWIVWC",    "ZWCHPC",    "ZWCHCVC",     "ZWCHCHC"],
+    C: ["ZWCVWC",    "ZWCHWC",    "ZWCVWHWC",    "ZWCHCVVC"],
+    D: ["ZVCVCVC",   "ZWCHV",     "ZWOVC",       "ZVWOVOWC"],
+    E: ["ZVCDVC",    "ZVCDVWC",   "ZVWOWC",      "ZVCDVWOV"],
+    F: ["ZVWIWC",    "ZVWDVW",    "ZVWIWIV",     "ZVCDPDVIV"],
+    G: ["ZVWIV",     "ZVWDVC",    "ZOPVPWC",     "ZVWDWIVC"],
+    H: ["ZDVDVC",    "ZVPIVC",    "ZHPDVWC",     "ZVPIVWCVW"],
+    J: ["ZIVPC",     "ZVPIVWC",   "ZDPCVPC",     "ZVPCHDOV"],
+    K: ["ZIHIV",     "ZIPWIV",    "ZVPWPCIV",    "ZVPCIHIHV"],
+    L: ["ZIPWV",     "ZIPWVCI",   "ZIVPWHC",     "ZIHCODOVI"],
+    M: ["ZIVCVC",    "ZIHCIV",    "ZIHWIVC",     "ZIHCVCVWC"],
+    N: ["ZCOVC",     "ZCVCHWC",   "ZCOCOV",      "ZCHWOCV"],
+    P: ["ZCDVWC",    "ZCICIVWC",  "ZCOWCIC",     "ZCIHPWOVC"],
+    Q: ["ZCDWC",     "ZCIWIWC",   "ZCIWCDWC",    "ZCOPIVWC"],
+    R: ["ZCDWC",     "ZCDVDVC",   "ZCOPVP",      "ZCIPIPW"],
+    S: ["ZCIVIVC",   "ZWCIVIDVC", "ZCIVWCWCIV",  "ZWIPWVPWC"],
+    T: ["ZWCIVIV",   "ZWCPCIV",   "ZWCPWIVC",    "ZWCPCDHPC"]
+  }
+};
+
+// Wednesday CV — same overall format as Tuesday with a slightly different
+// course matrix. The finish is ‘upwind of the last listed fixed mark’ unless
+// the race is shortened at a mark of the course.
+const CC_WED = {
+  id: "WED", name: "Wednesday Committee Vessel", short: "Wednesday CV",
+  channel: "HYC · Wednesday", color: "#ff9500",
+  startType: "cv", finishType: "upwind",
+  windLetters: CV_WIND_LETTERS,
+  windDegrees: CV_WIND_DEGREES,
+  numbers: [1,2,3,4],
+  notes: "Marks RED → PORT. GREEN underlined → STARBOARD. Bracketed [X] = passing mark only. Finish line is positioned upwind of the last fixed mark unless shortened earlier.",
+  courses: {
+    A: ["ZWIHI",    "ZWIHWI",    "ZPWPWCPCI",  "ZCIHPCPWCI"],
+    B: ["ZWCHC",    "ZWCUWC",    "ZWCHCVWC",   "ZWCHCHWC"],
+    C: ["ZWCVWC",   "ZWCHUPC",   "ZWCHCVWC",   "ZWCHCOC"],
+    D: ["ZHWVWC",   "ZHWOC",     "ZHWCOHC",    "ZHWCOVOC"],
+    E: ["ZVCDVC",   "ZVWCDVWC",  "ZVCGC",      "ZVCDVWOC"],
+    F: ["ZVWIVW",   "ZVWDHW",    "ZVWIWIW",    "ZVWDWDW"],
+    G: ["ZVWIVC",   "ZVWDWC",    "ZVPDPC",     "ZVPVPDPC"],
+    H: ["ZVWCVW",   "ZVPIPW",    "ZVPVPIVW",   "ZVPIPIVW"],
+    J: ["ZVPCVW",   "ZVPCVPW",   "ZDUDHW",     "ZDUDOPW"],
+    K: ["ZIHIDV",   "ZDUVH[V]",  "ZIUVU[V]",   "ZIUIU[V]"],
+    L: ["ZIHCIV",   "ZIHCH[V]",  "ZIHCVCIV",   "ZIAIH[V]"],
+    M: ["ZIVCVCV",  "ZIHWH[V]",  "ZIVCHCIV",   "ZIEIOCV"],
+    N: ["ZCHWCV",   "ZCIHWIV",   "ZCOCOV",     "ZCEWCV"],
+    P: ["ZCVWIV",   "ZCIHPCV",   "ZCOWVWV",    "ZCEPWV"],
+    Q: ["ZWCIWCI",  "ZWCIWCD[I]","ZWDWK[I]",   "ZWDWIWI"],
+    R: ["ZWCIWCI",  "ZWCIPWI",   "ZWKPI",      "ZWKPVPI"],
+    S: ["ZWIVWI",   "ZCDPCI",    "ZWIPVPI",    "ZWCDPIVWI"],
+    T: ["ZWCPWI",   "ZWIHWI",    "ZWDUPCI",    "ZWDUHUI"]
+  }
+};
+
+// Pier — Pier Course-Board, columns 5–8 (used for cruisers).
+// 24 wind directions in 15° steps, 4 course columns.
+const CC_PIER = {
+  id: "PIER", name: "Pier Course-Board", short: "Pier (5–8)",
+  channel: "HYC · Pier", color: "#007aff",
+  startType: "pier", finishType: "pier",
+  windLetters: PIER_WIND_LETTERS,
+  windDegrees: PIER_WIND_DEGREES,
+  numbers: [5,6,7,8],
+  notes: "Pier Course-Board (Cruisers). Start lines: A = South Rowan, B = Finish, C = Howth Mark — set per board signal. Marks RED → PORT, GREEN underlined → STARBOARD. ROWAN ROCKS BUOY: pass to east and south. SPIT: pass to north and east except when a rounding mark.",
+  courses: {
+    "00": ["BYKY",   "BYKIHY",   "BYOIHKB",   "JOIHIHY"],
+    "01": ["BGY",    "JKDOGY",   "JKCHY",     "JKIAY"],
+    "03": ["JGY",    "JGIOY",    "JGIOCDY",   "JGIODEY"],
+    "04": ["JYIOY",  "JIEY",     "JWHY",      "JWAY"],
+    "06": ["JSGY",   "JSGKGY",   "JVEY",      "JWEY"],
+    "07": ["JYDGKY", "JYCGY",    "JYVOIGKY",  "JYWOIGY"],
+    "09": ["JYIKY",  "JYKY",     "JYWKY",     "JYWDWKY"],
+    "10": ["JYWY",   "JYPGY",    "JYWIWY",    "JYVWPKY"],
+    "12": ["JYVKY",  "JYPKY",    "JYHGVKY",   ""],
+    "13": ["JYVY",   "JYVDVY",   "JYUGY",     "JYVIPSVY"],
+    "15": ["BYHY",   "BYPY",     "BYUYB",     "BYHDHY"],
+    "16": ["BYDIY",  "BYVY",     "BYHY",      "BYHKVY"],
+    "18": ["BYODY",  "BYKBKB",   "BYOHSY",    "BYAY"],
+    "19": ["BYGY",   "BYEY",     "BYEKGY",    "BADODKY"],
+    "21": ["JGY",    "JOCOY",    "JACY",      "JUWOIY"],
+    "22": ["JOIY",   "JECY",     "JECOY",     "JEDEDY"],
+    "24": ["JGSY",   "JEVY",     "JEWY",      "JGSGSY"],
+    "25": ["JDCY",   "JGCK",     "JGCDCY",    "JEWY"],
+    "27": ["JKCKY",  "JGWY",     "JGWKIY",    "JGWKSY"],
+    "28": ["JYWY",   "JYWKIY",   "JKWIWY",    "JKWDWY"],
+    "30": ["JKVY",   "JKVDVY",   "JKPDVY",    "JGHKPY"],
+    "31": ["JKHKY",  "JKHIVY",   "JVDPY",     "JGUGOY"],
+    "33": ["JBXJ",   "JBJSPY",   "JHDIVY",    "JIKOKHY"],
+    "34": ["JDHY",   "JIUIY",    "JGAGY",     "JIUKOY"]
+  }
+};
+
+const CARDS = [CC_TUE, CC_WED, CC_PIER];
+
+/* =========================================================================
+   WIND HELPERS — slider-to-letter mapping, compass point names,
+   True Wind Angle and point-of-sail classification
+   ========================================================================= */
+function normDeg(d) { return ((d % 360) + 360) % 360; }
+
+function closestWindLetter(deg) {
+  // Snap an arbitrary degree (0–359) to the nearest A–R wind letter.
+  const d = normDeg(deg);
+  let best = WIND_LETTERS[0], bestDelta = 999;
+  for (const L of WIND_LETTERS) {
+    let delta = Math.abs(WIND_DEGREES[L] - d);
+    if (delta > 180) delta = 360 - delta;   // wrap-around
+    if (delta < bestDelta) { bestDelta = delta; best = L; }
+  }
+  return best;
+}
+
+function compassPointName(deg) {
+  const points = ["N","NNE","NE","ENE","E","ESE","SE","SSE",
+                  "S","SSW","SW","WSW","W","WNW","NW","NNW"];
+  return points[Math.round(normDeg(deg) / 22.5) % 16];
+}
+
+/* Compute True Wind Angle for a leg.
+   heading  = direction the boat is sailing (toward the next mark), 0–360
+   windDir  = direction the wind is COMING FROM, 0–360
+   Returns { twa, tack } where twa is 0–180 and tack is "port"/"starboard". */
+function calcTWA(heading, windDir) {
+  const rel = normDeg(windDir - heading);
+  // rel = bearing of wind source relative to boat's bow (clockwise from bow).
+  // 0–180 → wind from starboard side → starboard tack.
+  // 180–360 → wind from port side → port tack (mirror to 0–180).
+  if (rel <= 180) return { twa: rel,        tack: "starboard" };
+  else            return { twa: 360 - rel,  tack: "port"      };
+}
+
+/* Classify a TWA into a point-of-sail. */
+function pointOfSail(twa) {
+  if (twa < 30)   return { name: "Upwind",       short: "Upwind", color: "#8e8e93" };
+  if (twa < 50)   return { name: "Close Hauled", short: "Beat",   color: "#ff3b30" };
+  if (twa < 80)   return { name: "Close Reach",  short: "Cl. Reach", color: "#ff9500" };
+  if (twa < 110)  return { name: "Beam Reach",   short: "Beam",   color: "#ffcc00" };
+  if (twa < 160)  return { name: "Broad Reach",  short: "Broad",  color: "#34c759" };
+  return            { name: "Running",      short: "Run",    color: "#007aff" };
+}
+
+/* =========================================================================
+   GEOMETRY HELPERS
+   ========================================================================= */
+function bearing(p1, p2) {
+  const φ1 = p1.lat*Math.PI/180, φ2 = p2.lat*Math.PI/180;
+  const Δλ = (p2.lng - p1.lng)*Math.PI/180;
+  const y = Math.sin(Δλ)*Math.cos(φ2);
+  const x = Math.cos(φ1)*Math.sin(φ2) - Math.sin(φ1)*Math.cos(φ2)*Math.cos(Δλ);
+  return (Math.atan2(y, x)*180/Math.PI + 360) % 360;
+}
+function distanceNM(p1, p2) {
+  const R = 3440.065; // NM
+  const φ1 = p1.lat*Math.PI/180, φ2 = p2.lat*Math.PI/180;
+  const Δφ = (p2.lat - p1.lat)*Math.PI/180;
+  const Δλ = (p2.lng - p1.lng)*Math.PI/180;
+  const a = Math.sin(Δφ/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin(Δλ/2)**2;
+  return 2*R*Math.asin(Math.sqrt(a));
+}
+function fmtBearing(d) { return Math.round(d).toString().padStart(3,"0") + "°"; }
+function fmtDist(nm) { return nm.toFixed(2) + " NM"; }
+
+/* =========================================================================
+   LEAFLET MAP RENDERING
+   ========================================================================= */
+const MAP_CENTER = [53.395, -6.060]; // Howth Harbour
+
+// Carto's basemaps don't require a Referer header, so they work fine when the
+// page is opened via file:// (unlike OSM's volunteer-run tile servers).
+const TILE_LAYERS = {
+  street: {
+    label: "Street",
+    layer: () => L.tileLayer(
+      "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+      {
+        maxZoom: 19,
+        subdomains: "abcd",
+        attribution: "© OpenStreetMap, © CARTO"
+      })
+  },
+  satellite: {
+    label: "Satellite",
+    layer: () => L.tileLayer(
+      "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+      { maxZoom: 19, attribution: "Esri World Imagery" }
+    )
+  },
+  nautical: {
+    label: "Nautical",
+    layer: () => L.layerGroup([
+      L.tileLayer(
+        "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+        { maxZoom: 19, subdomains: "abcd", attribution: "© OpenStreetMap, © CARTO" }),
+      L.tileLayer("https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png", {
+        maxZoom: 19, attribution: "© OpenSeaMap"
+      })
+    ])
+  }
+};
+
+let leafletMap = null;
+let leafletTileLayer = null;
+let leafletOverlay = null;   // L.LayerGroup for marks + legs
+let currentLayerKey = "street";
+
+function leafletReady() { return typeof L !== "undefined" && L && L.map; }
+
+function ensureMap() {
+  if (!leafletReady()) return false;
+  if (leafletMap) return true;
+  leafletMap = L.map("map", {
+    center: MAP_CENTER,
+    zoom: 13,
+    zoomControl: true,
+    attributionControl: true,
+    // Map is interactive: pinch-zoom, pan, double-tap zoom all enabled.
+    dragging: true,
+    touchZoom: true,
+    scrollWheelZoom: true,
+    doubleClickZoom: true,
+    boxZoom: true,
+    keyboard: true
+  });
+  setTileLayer(currentLayerKey);
+  leafletOverlay = L.layerGroup().addTo(leafletMap);
+  // Re-fix size after CSS settles
+  setTimeout(() => leafletMap.invalidateSize(), 50);
+  return true;
+}
+
+function setTileLayer(key) {
+  currentLayerKey = key;
+  if (!leafletReady() || !leafletMap) return;
+  if (leafletTileLayer) {
+    leafletMap.removeLayer(leafletTileLayer);
+    leafletTileLayer = null;
+  }
+  leafletTileLayer = TILE_LAYERS[key].layer().addTo(leafletMap);
+}
+
+function makeMarkIcon(mark, opts) {
+  const role = opts.role;
+  const sel  = opts.selected;
+  const cls = (sel ? "mark-pin sel " : "mark-pin ") +
+              (role ? role : "unsel");
+  const html = `<div class="${cls}">${mark.id}</div>`;
+  return L.divIcon({
+    html,
+    className: "",                         // strip Leaflet's default
+    iconSize: [0,0],
+    iconAnchor: [0,0]
+  });
+}
+
+function makeLabelTip(text) {
+  return L.divIcon({
+    html: `<div class="mark-label-tip">${text}</div>`,
+    className: "",
+    iconSize: [0,0],
+    iconAnchor: [0,0]
+  });
+}
+
+function arrowIconAt(angleDeg) {
+  // Pointing arrow icon for mid-leg direction indicator
+  const html = `<div class="leg-arrow" style="transform:translate(-8px,-10px) rotate(${angleDeg}deg);">▶</div>`;
+  return L.divIcon({ html, className: "", iconSize:[0,0], iconAnchor:[0,0] });
+}
+
+function drawMap(courseLegs) {
+  if (!ensureMap()) {
+    // Leaflet isn't loaded — show a graceful fallback so the page still works
+    const el = document.getElementById("map");
+    if (el && !el.dataset.fallback) {
+      el.dataset.fallback = "1";
+      el.style.cssText =
+        "display:flex;align-items:center;justify-content:center;height:100%;" +
+        "padding:20px;text-align:center;color:var(--text-secondary);font-size:13px;";
+      el.textContent = "Map library couldn't load. Course bearings & TWA are still shown below.";
+    }
+    return;
+  }
+  leafletOverlay.clearLayers();
+
+  const used = new Set();
+  if (courseLegs) courseLegs.forEach(l => {
+    if (l.from.id) used.add(l.from.id);
+    if (l.to.id) used.add(l.to.id);
+  });
+
+  // Background marks: every fixed mark not in the current course
+  for (const k of Object.keys(MARKS)) {
+    if (k === "Z") continue;  // Zephyr is dynamically positioned upwind of start, not a fixed background mark
+    if (k === "Y") continue;  // Ireland's Eye — landmass, not a buoy
+    if (used.has(k)) continue;
+    const m = MARKS[k];
+    const marker = L.marker([m.lat, m.lng], {
+      icon: makeMarkIcon(m, { selected: false, role: null }),
+      keyboard: false,
+      riseOnHover: true
+    }).bindPopup(`<b>${m.name}</b><br/><span style="color:#6e6e73;">Mark ${m.id} · ${m.color}</span>`);
+    leafletOverlay.addLayer(marker);
+    // Discreet name label next to background marks
+    const tip = L.marker([m.lat, m.lng], {
+      icon: makeLabelTip(m.name),
+      interactive: false
+    });
+    leafletOverlay.addLayer(tip);
+  }
+
+  if (!courseLegs || courseLegs.length === 0) return;
+
+  // Course polyline (drawn under markers)
+  const path = [
+    [courseLegs[0].from.lat, courseLegs[0].from.lng],
+    ...courseLegs.map(l => [l.to.lat, l.to.lng])
+  ];
+  const line = L.polyline(path, {
+    color: "#007aff",
+    weight: 3.5,
+    opacity: 0.95,
+    lineJoin: "round",
+    lineCap: "round"
+  });
+  leafletOverlay.addLayer(line);
+
+  // Mid-leg arrow + leg label
+  courseLegs.forEach((leg, i) => {
+    const midLat = (leg.from.lat + leg.to.lat)/2;
+    const midLng = (leg.from.lng + leg.to.lng)/2;
+    const arrow = L.marker([midLat, midLng], {
+      icon: arrowIconAt(leg.bearing - 90),  // ▶ glyph points east when 0deg
+      interactive: false
+    });
+    leafletOverlay.addLayer(arrow);
+  });
+
+  // Selected marks on top with action-coloured pins
+  const seq = [{ mark: courseLegs[0].from, role: courseLegs[0].fromRole, order: 1 }];
+  courseLegs.forEach((l, i) => seq.push({ mark: l.to, role: l.toRole, order: i+2 }));
+
+  seq.forEach(s => {
+    const m = s.mark;
+    if (m.lat == null) return;
+    const popup =
+      `<b>${s.order}. ${m.name}</b><br/>` +
+      (s.role === "start" ? "Start" :
+       s.role === "finish" ? "Finish" :
+       s.role === "port" ? '<span style="color:#ff3b30;">Round to PORT</span>' :
+       s.role === "starboard" ? '<span style="color:#34c759;">Round to STARBOARD</span>' : "");
+    const marker = L.marker([m.lat, m.lng], {
+      icon: makeMarkIcon({ id: m.id || (s.role === "start" ? "S" : "F") }, {
+        selected: true, role: s.role
+      }),
+      zIndexOffset: 1000,
+      riseOnHover: true
+    }).bindPopup(popup);
+    leafletOverlay.addLayer(marker);
+  });
+
+  // Frame the map to show the full extent of the course only.
+  // Always re-fit (no zoom/pan is allowed, so this is the entire user view).
+  try {
+    const courseBounds = L.latLngBounds(path);
+    leafletMap.invalidateSize();
+    leafletMap.fitBounds(courseBounds, {
+      padding: [38, 38],
+      maxZoom: 16,
+      animate: false
+    });
+  } catch (e) { /* noop */ }
+}
+
+/* =========================================================================
+   STATE & APP LOGIC
+   ========================================================================= */
+const state = {
+  cardId: "TUE",
+  // Wind for COURSE LOOKUP — picks which entry to use from the course card.
+  // Snaps to one of the active card's letters. Changed only by the pill row.
+  courseWindLetter: "A",
+  // CURRENT actual on-the-water wind direction, 0–359° from True North.
+  // Changed only by the slider. Used to compute TWA for each leg.
+  currentWindDegree: 0,
+  courseNum: 1
+};
+
+function getCard() {
+  const c = CARDS.find(c => c.id === state.cardId) || CARDS[0];
+  // Sync the active wind letter/degree maps so all helpers can use globals.
+  WIND_LETTERS = c.windLetters;
+  WIND_DEGREES = c.windDegrees;
+  return c;
+}
+function getCourseTokens() {
+  const card = getCard();
+  const arr = card.courses[state.courseWindLetter];
+  if (!arr) return [];
+  const idx = card.numbers.indexOf(state.courseNum);
+  if (idx < 0 || idx >= arr.length || !arr[idx]) return [];
+  return parseCourseString(arr[idx]);
+}
+
+/* Signed wind shift from course wind to current wind, in degrees,
+   normalised to (-180, 180]. Positive = veered (clockwise),
+   Negative = backed (counter-clockwise). */
+function windShift() {
+  const courseDeg = WIND_DEGREES[state.courseWindLetter];
+  let d = state.currentWindDegree - courseDeg;
+  if (d > 180)  d -= 360;
+  if (d <= -180) d += 360;
+  return d;
+}
+
+/* Parse a token like "Ep" or "As" into { id, side } */
+function parseToken(tok) {
+  // last char is side
+  const side = tok.slice(-1);
+  const id = tok.slice(0, -1);
+  return { id, side };
+}
+
+/* Build the full leg list from start → marks → finish */
+function buildLegs() {
+  const card = getCard();
+  const tokens = getCourseTokens();
+  if (tokens.length === 0) return [];
+
+  const items = [];
+
+  // START
+  if (card.startType === "cv") {
+    items.push({ id: null, name: "Start (Committee Vessel)", role: "start" });
+  } else if (card.startType === "pier") {
+    // Pier course-board start line — typically near the East Pier hut
+    items.push({
+      id: "F", name: "Start (Pier transit line)", role: "start",
+      lat: MARKS.F.lat, lng: MARKS.F.lng
+    });
+  }
+
+  // MARKS
+  tokens.forEach((tok, i) => {
+    const { id, side } = parseToken(tok);
+    const m = MARKS[id];
+    if (!m) return;
+    items.push({
+      id, name: m.name, side,
+      role: side === "p" ? "port" : "starboard",
+      lat: m.lat, lng: m.lng
+    });
+  });
+
+  // FINISH
+  if (card.finishType === "upwind") {
+    items.push({ id: null, name: "Finish (upwind of last fixed mark)", role: "finish" });
+  } else if (card.finishType === "pier") {
+    items.push({
+      id: "F", name: "Finish (Pier line / Sound)", role: "finish",
+      lat: MARKS.F.lat, lng: MARKS.F.lng
+    });
+  }
+
+  // For CV start, place start near first mark roughly downwind.
+  // For upwind finish, place finish ~0.3 NM upwind of last mark.
+  // These virtual marks were laid out by the race committee for the COURSE
+  // wind (not whatever the wind has shifted to now).
+  const windDeg = WIND_DEGREES[state.courseWindLetter];
+  // wind direction is direction wind comes FROM, so upwind = bearing "windDeg" from current
+  function offset(p, bearingDeg, nm) {
+    const R = 3440.065;
+    const δ = nm / R;
+    const θ = bearingDeg * Math.PI/180;
+    const φ1 = p.lat * Math.PI/180;
+    const λ1 = p.lng * Math.PI/180;
+    const φ2 = Math.asin(Math.sin(φ1)*Math.cos(δ) + Math.cos(φ1)*Math.sin(δ)*Math.cos(θ));
+    const λ2 = λ1 + Math.atan2(Math.sin(θ)*Math.sin(δ)*Math.cos(φ1),
+                               Math.cos(δ)-Math.sin(φ1)*Math.sin(φ2));
+    return { lat: φ2*180/Math.PI, lng: λ2*180/Math.PI };
+  }
+
+  // Find first real mark (after start)
+  let firstReal = items.find(it => it.lat != null && it.role !== "start");
+  let lastReal  = [...items].reverse().find(it => it.lat != null && it.role !== "finish");
+
+  // Position start (CV)
+  const startItem = items[0];
+  if (startItem.role === "start" && startItem.lat == null && firstReal) {
+    // place ~0.3 NM downwind of first mark
+    const downwind = (windDeg + 180) % 360;
+    const p = offset(firstReal, downwind, 0.3);
+    startItem.lat = p.lat; startItem.lng = p.lng;
+  }
+
+  // Position finish (upwind)
+  const finishItem = items[items.length - 1];
+  if (finishItem.role === "finish" && finishItem.lat == null && lastReal) {
+    const p = offset(lastReal, windDeg, 0.25);
+    finishItem.lat = p.lat; finishItem.lng = p.lng;
+  }
+
+  // Convert to legs
+  const legs = [];
+  for (let i = 0; i < items.length - 1; i++) {
+    const a = items[i], b = items[i+1];
+    if (a.lat == null || b.lat == null) continue;
+    const brg = bearing({lat:a.lat,lng:a.lng},{lat:b.lat,lng:b.lng});
+    const dist = distanceNM({lat:a.lat,lng:a.lng},{lat:b.lat,lng:b.lng});
+    legs.push({
+      from: a, to: b,
+      fromRole: a.role, toRole: b.role,
+      fromOrder: i === 0 ? "Start" : (i),
+      toOrder: i === items.length-2 ? "Finish" : (i+1),
+      bearing: brg, distance: dist
+    });
+  }
+  return legs;
+}
+
+/* =========================================================================
+   UI RENDERING
+   ========================================================================= */
+function renderCardChooser() {
+  const grid = document.getElementById("cc-grid");
+  grid.innerHTML = "";
+  CARDS.forEach(c => {
+    const btn = document.createElement("button");
+    btn.className = "cc-tile cc" + c.id + (c.id === state.cardId ? " active" : "");
+    btn.innerHTML = `
+      <span class="cc-tile-id">${c.id}</span>
+      <div class="cc-tile-name">${c.short}</div>
+      <div class="cc-tile-meta">${c.channel}</div>
+    `;
+    btn.onclick = () => {
+      state.cardId = c.id;
+      // Set the active wind letter/degree maps and snap state to this card.
+      WIND_LETTERS = c.windLetters;
+      WIND_DEGREES = c.windDegrees;
+      // Clamp courseNum into the card's numbers and to the first valid number.
+      if (!c.numbers.includes(state.courseNum)) state.courseNum = c.numbers[0];
+      // If the current courseWindLetter doesn't exist on this card, snap to
+      // the closest direction so the slider's existing degree is preserved.
+      if (!c.windLetters.includes(state.courseWindLetter)) {
+        state.courseWindLetter = closestWindLetter(state.currentWindDegree);
+      }
+      renderAll();
+    };
+    grid.appendChild(btn);
+  });
+}
+
+/* Compass with two arrows: faint dashed arrow = course wind,
+   bold accent arrow = current wind from slider. */
+function renderCompass() {
+  const courseDeg  = WIND_DEGREES[state.courseWindLetter];
+  const currentDeg = state.currentWindDegree;
+  const cx = 90, cy = 90, R = 80;
+
+  let ticks = "";
+  for (let i = 0; i < 360; i += 22.5) {
+    const a = (i - 90) * Math.PI/180;
+    const x1 = cx + Math.cos(a)*(R-2), y1 = cy + Math.sin(a)*(R-2);
+    const x2 = cx + Math.cos(a)*(R-7), y2 = cy + Math.sin(a)*(R-7);
+    ticks += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="var(--separator)" stroke-width="0.7"/>`;
+  }
+  ["N","E","S","W"].forEach((lbl, i) => {
+    const a = (i*90 - 90) * Math.PI/180;
+    const x = cx + Math.cos(a)*(R-16);
+    const y = cy + Math.sin(a)*(R-16) + 3;
+    ticks += `<text x="${x}" y="${y}" text-anchor="middle" font-size="10" font-weight="700" fill="var(--text-secondary)">${lbl}</text>`;
+  });
+
+  // Course wind — dashed grey arrow with letter at the tip
+  const ca = (courseDeg - 90) * Math.PI/180;
+  const cArX = cx + Math.cos(ca)*(R-14);
+  const cArY = cy + Math.sin(ca)*(R-14);
+  const cLabX = cx + Math.cos(ca)*(R+2);
+  const cLabY = cy + Math.sin(ca)*(R+2) + 3;
+  const courseArrow = `
+    <line x1="${cx}" y1="${cy}" x2="${cArX}" y2="${cArY}"
+          stroke="var(--text-tertiary)" stroke-width="2"
+          stroke-linecap="round" stroke-dasharray="3 3" opacity="0.85"/>
+    <circle cx="${cArX}" cy="${cArY}" r="3.5" fill="none"
+            stroke="var(--text-tertiary)" stroke-width="1.5"/>
+    <text x="${cLabX}" y="${cLabY}" text-anchor="middle"
+          font-size="9" font-weight="700" fill="var(--text-tertiary)">${state.courseWindLetter}</text>
+  `;
+
+  // Current wind — bold accent arrow (slider-driven)
+  const a = (currentDeg - 90) * Math.PI/180;
+  const arX = cx + Math.cos(a)*(R-12);
+  const arY = cy + Math.sin(a)*(R-12);
+  const currentArrow = `
+    <line x1="${cx}" y1="${cy}" x2="${arX}" y2="${arY}"
+          stroke="var(--accent)" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="${arX}" cy="${arY}" r="5" fill="var(--accent)"/>
+    <text x="${cx}" y="${cy+4}" text-anchor="middle"
+          font-size="13" font-weight="700" fill="var(--text)">${String(Math.round(currentDeg)).padStart(3,"0")}°</text>
+    <text x="${cx}" y="${cy+22}" text-anchor="middle"
+          font-size="10" fill="var(--text-secondary)">${compassPointName(currentDeg)}</text>
+  `;
+
+  document.getElementById("compass").innerHTML =
+    `<svg viewBox="0 0 180 180">
+       <circle cx="${cx}" cy="${cy}" r="${R}" fill="rgba(120,120,128,0.08)" stroke="var(--separator)" stroke-width="1"/>
+       ${ticks}${courseArrow}${currentArrow}
+     </svg>`;
+}
+
+/* Course-wind picker: big letter summary + the A–R pill row. */
+function renderCourseWindPicker() {
+  const card = getCard();
+  const letter = state.courseWindLetter;
+  const deg = WIND_DEGREES[letter];
+
+  document.getElementById("cw-letter").textContent = letter;
+  document.getElementById("cw-deg").textContent = String(deg).padStart(3,"0") + "°";
+  document.getElementById("cw-name").textContent = compassPointName(deg);
+
+  const list = document.getElementById("wind-list");
+  list.innerHTML = "";
+  card.windLetters.forEach(L => {
+    const btn = document.createElement("button");
+    btn.className = "wind-pill" + (L === letter ? " active" : "");
+    btn.innerHTML = `<span class="letter">${L}</span><span class="deg">${String(WIND_DEGREES[L]).padStart(3,"0")}°</span>`;
+    btn.onclick = () => {
+      // ONLY changes which course is shown — does NOT touch the slider
+      state.courseWindLetter = L;
+      renderAll();
+    };
+    list.appendChild(btn);
+  });
+}
+
+/* Current-wind controls: slider + readout + shift indicator.
+   Slider movement does NOT change the course pill / course lookup. */
+function renderCurrentWindControls() {
+  const wind = state.currentWindDegree;
+
+  document.getElementById("wind-deg-big").textContent =
+    String(Math.round(wind)).padStart(3,"0") + "°";
+  document.getElementById("wind-letter-sub").innerHTML =
+    `${compassPointName(wind)} · nearest letter <b>${closestWindLetter(wind)}</b>`;
+
+  const slider = document.getElementById("wind-slider");
+  slider.value = Math.round(wind);
+  slider.oninput = (e) => {
+    state.currentWindDegree = parseInt(e.target.value, 10);
+    renderAll();
+  };
+
+  // Shift indicator
+  const courseDeg = WIND_DEGREES[state.courseWindLetter];
+  const shift = windShift();
+  const el = document.getElementById("shift-indicator");
+  if (Math.abs(shift) < 1) {
+    el.className = "shift-indicator aligned";
+    el.innerHTML =
+      `Aligned with course wind <b>${state.courseWindLetter}</b> ${String(courseDeg).padStart(3,"0")}°`;
+  } else {
+    const dir = shift > 0 ? "veered" : "backed";
+    el.className = "shift-indicator";
+    el.innerHTML =
+      `Shift <span class="shift-val ${dir}">${shift > 0 ? "+" : ""}${Math.round(shift)}°</span> ` +
+      `(${dir} from <b>${state.courseWindLetter}</b> ${String(courseDeg).padStart(3,"0")}°)`;
+  }
+}
+
+function renderNumbers() {
+  const card = getCard();
+  const row = document.getElementById("num-row");
+  row.innerHTML = "";
+  card.numbers.forEach((n, i) => {
+    const btn = document.createElement("button");
+    btn.className = "num-btn" + (n === state.courseNum ? " active" : "");
+    btn.textContent = n;
+    btn.onclick = () => { state.courseNum = n; renderAll(); };
+    // gray-out if no course exists
+    const arr = card.courses[state.courseWindLetter] || [];
+    if (i >= arr.length || !arr[i]) btn.disabled = true;
+    row.appendChild(btn);
+  });
+}
+
+function renderHeader() {
+  const card = getCard();
+  const courseDeg = String(WIND_DEGREES[state.courseWindLetter]).padStart(3,"0");
+  const curDeg = String(Math.round(state.currentWindDegree)).padStart(3,"0");
+  document.getElementById("course-header").textContent =
+    `${card.id}  ·  Course ${state.courseWindLetter} (${courseDeg}°)  ·  Wind now ${curDeg}°  ·  #${state.courseNum}`;
+  document.getElementById("nav-sub").textContent =
+    `${card.name}  ·  ${card.channel}`;
+}
+
+function renderSummary(legs) {
+  const total = legs.reduce((s,l) => s + l.distance, 0);
+  const numMarks = legs.length ? legs.length - 1 : 0; // marks between start and finish
+  const html = `
+    <div class="stat">
+      <div class="stat-label">Total Distance</div>
+      <div class="stat-val">${total.toFixed(2)} <span style="font-size:13px;font-weight:500;color:var(--text-secondary);">NM</span></div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Legs</div>
+      <div class="stat-val">${legs.length}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Marks</div>
+      <div class="stat-val">${numMarks - (getCard().finishType==="upwind"?0:0)}</div>
+    </div>
+  `;
+  document.getElementById("summary").innerHTML = html;
+}
+
+function renderMarkList(legs) {
+  const list = document.getElementById("mark-list");
+  if (legs.length === 0) {
+    list.innerHTML = `<div class="list-row"><div class="list-name" style="color:var(--text-secondary);">No course defined for this combination.</div></div>`;
+    return;
+  }
+  const windDeg = state.currentWindDegree;
+  let html = "";
+  legs.forEach((leg, i) => {
+    const from = leg.from;
+    const role = from.role;
+    const badgeClass = role === "start" ? "start"
+                    : role === "finish" ? "finish"
+                    : role === "port" ? "port"
+                    : role === "starboard" ? "starboard" : "";
+    const initial = from.id ? from.id : (role === "start" ? "S" : "F");
+    let action = "";
+    if (role === "start") action = "Start";
+    else if (role === "finish") action = "Finish";
+    else if (role === "port") action = "Round to PORT";
+    else if (role === "starboard") action = "Round to STARBOARD";
+
+    // True Wind Angle for the leg leaving this mark
+    const { twa, tack } = calcTWA(leg.bearing, windDeg);
+    const pos = pointOfSail(twa);
+    const tackClass = tack === "starboard" ? "tack-stbd" : "tack-port";
+    const tackLabel = tack === "starboard" ? "STBD tack" : "PORT tack";
+    const twaRow =
+      `<div class="list-twa">
+         <span class="pos-dot" style="background:${pos.color};"></span>
+         <span class="pos-name">${pos.name}</span>
+         <span class="sep">·</span>
+         <span>TWA <span class="twa-num">${Math.round(twa)}°</span></span>
+         <span class="sep">·</span>
+         <span class="${tackClass}">${tackLabel}</span>
+       </div>`;
+
+    html += `
+      <div class="list-row">
+        <span class="list-num ${i===0 ? 'start' : ''}">${i+1}</span>
+        <span class="badge ${badgeClass}">${initial}</span>
+        <div>
+          <div class="list-name">${from.name}</div>
+          <div class="list-meta">${action}</div>
+          ${twaRow}
+        </div>
+        <div class="list-side">
+          <span class="deg">${fmtBearing(leg.bearing)}</span>
+          <span>${fmtDist(leg.distance)} →</span>
+        </div>
+      </div>
+    `;
+  });
+  // Final leg: the last item (the destination of the last leg)
+  const last = legs[legs.length - 1].to;
+  const role = last.role;
+  const badgeClass = role === "start" ? "start"
+                  : role === "finish" ? "finish"
+                  : role === "port" ? "port"
+                  : role === "starboard" ? "starboard" : "";
+  const initial = last.id ? last.id : "F";
+  let action = role === "finish" ? "Finish" :
+               role === "port" ? "Round to PORT" :
+               role === "starboard" ? "Round to STARBOARD" : "";
+  html += `
+    <div class="list-row">
+      <span class="list-num finish">${legs.length+1}</span>
+      <span class="badge ${badgeClass}">${initial}</span>
+      <div>
+        <div class="list-name">${last.name}</div>
+        <div class="list-meta">${action}</div>
+      </div>
+      <div class="list-side"></div>
+    </div>
+  `;
+  list.innerHTML = html;
+}
+
+function renderFootnote() {
+  const card = getCard();
+  document.getElementById("footnote").textContent = card.notes;
+}
+
+function renderLayerSwitch() {
+  const seg = document.getElementById("layer-seg");
+  if (seg.dataset.built) return;
+  seg.dataset.built = "1";
+  Object.keys(TILE_LAYERS).forEach(k => {
+    const btn = document.createElement("button");
+    btn.className = "seg-btn" + (k === currentLayerKey ? " active" : "");
+    btn.textContent = TILE_LAYERS[k].label;
+    btn.onclick = () => {
+      if (!ensureMap()) return;
+      setTileLayer(k);
+      // refresh active state
+      [...seg.children].forEach(c => c.classList.remove("active"));
+      btn.classList.add("active");
+    };
+    seg.appendChild(btn);
+  });
+}
+
+// ───────── Tide (Howth Harbour) ─────────
+// Open-Meteo Marine API gives sea_level_height_msl (m above mean sea level).
+// Howth MSL ≈ +2.46 m above Chart Datum (similar to Dublin Bay), so the
+// Chart-Datum height for display = msl + 2.46.
+const HOWTH = { lat: 53.391, lon: -6.067 };
+const MSL_TO_CD = 2.46;
+
+const tideState = {
+  status: "loading",   // loading | ok | error
+  hours: [],           // [{ t: Date, h: number_above_MSL, hCD: number_above_CD }]
+  events: [],          // [{ t: Date, h: number_above_CD, type: "HW"|"LW" }]
+};
+
+function isoDate(d) {
+  // Local YYYY-MM-DD
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function formatHM(d) {
+  const h = String(d.getHours()).padStart(2, "0");
+  const m = String(d.getMinutes()).padStart(2, "0");
+  return `${h}:${m}`;
+}
+
+async function loadTides() {
+  try {
+    const today = new Date();
+    const yesterday = new Date(today.getTime() - 24 * 3600 * 1000);
+    const tomorrow  = new Date(today.getTime() + 24 * 3600 * 1000);
+    const url =
+      `https://marine-api.open-meteo.com/v1/marine` +
+      `?latitude=${HOWTH.lat}&longitude=${HOWTH.lon}` +
+      `&hourly=sea_level_height_msl` +
+      `&timezone=auto` +
+      `&start_date=${isoDate(yesterday)}` +
+      `&end_date=${isoDate(tomorrow)}`;
+
+    const r = await fetch(url, { cache: "no-store" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const data = await r.json();
+    if (!data.hourly || !Array.isArray(data.hourly.time) || !Array.isArray(data.hourly.sea_level_height_msl)) {
+      throw new Error("Bad response shape");
+    }
+
+    const hours = data.hourly.time.map((iso, i) => {
+      const h = data.hourly.sea_level_height_msl[i];
+      // Open-Meteo with timezone=auto returns local-time strings like
+      // "2026-04-26T08:00" — parse as local.
+      const t = new Date(iso);
+      return { t, h, hCD: (h == null ? null : h + MSL_TO_CD) };
+    }).filter(p => p.h != null);
+
+    const events = findExtrema(hours).filter(ev => sameLocalDay(ev.t, today));
+
+    tideState.hours = hours;
+    tideState.events = events;
+    tideState.status = "ok";
+  } catch (e) {
+    console.warn("Tide fetch failed:", e);
+    tideState.status = "error";
+  }
+  renderTide();
+}
+
+function sameLocalDay(a, b) {
+  return a.getFullYear() === b.getFullYear()
+      && a.getMonth() === b.getMonth()
+      && a.getDate() === b.getDate();
+}
+
+// Find local maxima/minima with quadratic refinement on the surrounding triple.
+function findExtrema(hours) {
+  const out = [];
+  for (let i = 1; i < hours.length - 1; i++) {
+    const a = hours[i - 1].h, b = hours[i].h, c = hours[i + 1].h;
+    const isMax = b > a && b > c;
+    const isMin = b < a && b < c;
+    if (!isMax && !isMin) continue;
+
+    // Quadratic peak offset in [-1, 1] (units = hours)
+    const denom = (a - 2 * b + c);
+    let offset = 0;
+    let peakH = b;
+    if (Math.abs(denom) > 1e-9) {
+      offset = 0.5 * (a - c) / denom;
+      // Clamp to a sensible range
+      if (offset > 1)  offset = 1;
+      if (offset < -1) offset = -1;
+      peakH = b - 0.25 * (a - c) * offset;
+    }
+    const baseT = hours[i].t.getTime();
+    const t = new Date(baseT + offset * 3600 * 1000);
+    out.push({
+      t,
+      h: peakH,
+      hCD: peakH + MSL_TO_CD,
+      type: isMax ? "HW" : "LW"
+    });
+  }
+  return out;
+}
+
+function tideAtNow() {
+  if (!tideState.hours.length) return null;
+  const now = Date.now();
+  // Find bracketing samples
+  let prev = tideState.hours[0], next = tideState.hours[tideState.hours.length - 1];
+  for (let i = 0; i < tideState.hours.length - 1; i++) {
+    if (tideState.hours[i].t.getTime() <= now && now <= tideState.hours[i + 1].t.getTime()) {
+      prev = tideState.hours[i];
+      next = tideState.hours[i + 1];
+      break;
+    }
+  }
+  const span = next.t.getTime() - prev.t.getTime();
+  const f = span > 0 ? (now - prev.t.getTime()) / span : 0;
+  const hCD = prev.hCD + (next.hCD - prev.hCD) * f;
+  const trend = next.hCD > prev.hCD ? "rising" : (next.hCD < prev.hCD ? "falling" : "slack");
+  return { hCD, trend };
+}
+
+function nextEventFromNow() {
+  const now = Date.now();
+  return tideState.events.find(ev => ev.t.getTime() > now) || null;
+}
+
+function renderTide() {
+  const sum = document.getElementById("tide-summary");
+  const chartWrap = document.getElementById("tide-chart-wrap");
+  const eventsDiv = document.getElementById("tide-events");
+  if (!sum || !chartWrap || !eventsDiv) return;
+
+  if (tideState.status === "loading") {
+    sum.innerHTML = `<div class="tide-loading">Loading tide data…</div>`;
+    chartWrap.style.display = "none";
+    eventsDiv.innerHTML = "";
+    return;
+  }
+  if (tideState.status === "error") {
+    sum.innerHTML = `<div class="tide-error">Tide data unavailable. Check connection and reload.</div>`;
+    chartWrap.style.display = "none";
+    eventsDiv.innerHTML = "";
+    return;
+  }
+
+  const now = tideAtNow();
+  const next = nextEventFromNow();
+  const nowStr = now ? `${now.hCD.toFixed(2)} m` : "—";
+  const trendCls = now && now.trend === "rising"  ? "tide-state-rising"
+                : now && now.trend === "falling" ? "tide-state-falling"
+                : "";
+  const trendLabel = now ? now.trend.charAt(0).toUpperCase() + now.trend.slice(1) : "";
+  const nextLine = next
+    ? `Next ${next.type} at <strong>${formatHM(next.t)}</strong> · ${next.hCD.toFixed(2)} m`
+    : "No further events today";
+
+  sum.innerHTML = `
+    <div>
+      <div class="tide-now-val">${nowStr}</div>
+      <div class="tide-now-state">
+        <span class="${trendCls}">${trendLabel || "—"}</span>
+        · above Chart Datum<br>
+        ${nextLine}
+      </div>
+    </div>`;
+
+  chartWrap.style.display = "";
+  renderTideChart();
+
+  // Today's HW/LW grid
+  if (!tideState.events.length) {
+    eventsDiv.innerHTML = "";
+  } else {
+    eventsDiv.innerHTML = tideState.events.map(ev => `
+      <div class="tide-event">
+        <div class="tide-event-type ${ev.type === "HW" ? "hw" : "lw"}">${ev.type === "HW" ? "High Water" : "Low Water"}</div>
+        <div class="tide-event-time">${formatHM(ev.t)}</div>
+        <div class="tide-event-height">${ev.hCD.toFixed(2)} m above CD</div>
+      </div>`).join("");
+  }
+}
+
+function renderTideChart() {
+  const svg = document.getElementById("tide-chart");
+  if (!svg || !tideState.hours.length) return;
+
+  // Filter to today's local 00:00–24:00
+  const now = new Date();
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).getTime();
+  const endOfDay = startOfDay + 24 * 3600 * 1000;
+  const inDay = tideState.hours.filter(p => p.t.getTime() >= startOfDay - 3600 * 1000
+                                          && p.t.getTime() <= endOfDay + 3600 * 1000);
+  if (inDay.length < 2) return;
+
+  const W = 320, H = 110, padX = 8, padTop = 10, padBot = 22;
+  const xs = t => padX + ((t - startOfDay) / (endOfDay - startOfDay)) * (W - padX * 2);
+  const heights = inDay.map(p => p.hCD);
+  const minH = Math.min(...heights);
+  const maxH = Math.max(...heights);
+  const span = Math.max(0.5, maxH - minH);
+  const ys = h => padTop + (1 - (h - minH) / span) * (H - padTop - padBot);
+
+  // Curve path
+  let d = "";
+  inDay.forEach((p, i) => {
+    const x = xs(p.t.getTime()), y = ys(p.hCD);
+    d += (i === 0 ? "M" : "L") + x.toFixed(1) + "," + y.toFixed(1) + " ";
+  });
+  // Fill path: close to bottom
+  const fillD = d + `L${xs(inDay[inDay.length - 1].t.getTime()).toFixed(1)},${(H - padBot).toFixed(1)} `
+                  + `L${xs(inDay[0].t.getTime()).toFixed(1)},${(H - padBot).toFixed(1)} Z`;
+
+  // Vertical hour gridlines at 0/6/12/18/24
+  let grid = "";
+  for (const hr of [0, 6, 12, 18, 24]) {
+    const xt = startOfDay + hr * 3600 * 1000;
+    const x = xs(xt).toFixed(1);
+    grid += `<line x1="${x}" y1="${padTop}" x2="${x}" y2="${H - padBot}" stroke="currentColor" stroke-opacity="0.12" stroke-width="0.5"/>`;
+    if (hr < 24) grid += `<text x="${x}" y="${H - 6}" font-size="9" fill="currentColor" fill-opacity="0.5" text-anchor="middle" font-family="-apple-system, sans-serif">${String(hr).padStart(2, "0")}:00</text>`;
+  }
+
+
+  // HW/LW dots (today only)
+  let dots = "";
+  tideState.events.forEach(ev => {
+    const x = xs(ev.t.getTime());
+    const y = ys(ev.hCD);
+    if (x < padX || x > W - padX) return;
+    const fill = ev.type === "HW" ? "var(--accent)" : "var(--gate)";
+    dots += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3" fill="${fill}"/>`;
+    dots += `<text x="${x.toFixed(1)}" y="${(y - 6).toFixed(1)}" font-size="9" fill="currentColor" fill-opacity="0.75" text-anchor="middle" font-family="-apple-system, sans-serif">${ev.type} ${formatHM(ev.t)}</text>`;
+  });
+
+  // "Now" marker
+  const nowT = Date.now();
+  let nowLine = "";
+  if (nowT >= startOfDay && nowT <= endOfDay) {
+    const x = xs(nowT).toFixed(1);
+    nowLine = `<line x1="${x}" y1="${padTop}" x2="${x}" y2="${H - padBot}" stroke="var(--accent)" stroke-width="1" stroke-dasharray="2,2"/>`;
+  }
+
+  svg.innerHTML = `
+    <defs>
+      <linearGradient id="tideFill" x1="0" x2="0" y1="0" y2="1">
+        <stop offset="0%"  stop-color="var(--accent)" stop-opacity="0.35"/>
+        <stop offset="100%" stop-color="var(--accent)" stop-opacity="0.02"/>
+      </linearGradient>
+    </defs>
+    ${grid}
+    <path d="${fillD}" fill="url(#tideFill)" stroke="none"/>
+    <path d="${d}" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+    ${dots}
+    ${nowLine}
+  `;
+}
+
+function renderAll() {
+  renderCardChooser();
+  renderHeader();
+  renderCourseWindPicker();
+  renderCurrentWindControls();
+  renderCompass();
+  renderNumbers();
+  renderLayerSwitch();
+  const legs = buildLegs();
+  renderSummary(legs);
+  drawMap(legs);
+  renderMarkList(legs);
+  renderFootnote();
+  renderTide();
+}
+
+renderAll();
+loadTides();
+// Refresh "now" indicator + current height every minute
+setInterval(() => {
+  if (tideState.status === "ok") renderTide();
+}, 60 * 1000);
+// Re-fit map when layout fully settles (mobile webviews sometimes mis-size)
+window.addEventListener("load", () => {
+  if (leafletMap) {
+    leafletMap.invalidateSize();
+  } else if (leafletReady()) {
+    // Leaflet finished loading after our first renderAll — redraw to add the map
+    renderAll();
+  }
+});
+</script>
+</body>
+</html>
