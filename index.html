@@ -794,22 +794,22 @@ const PIER_WIND_LETTERS = [
 const PIER_WIND_DEGREES = {};
 PIER_WIND_LETTERS.forEach((L, i) => { PIER_WIND_DEGREES[L] = i * 15; });
 
-// Mark IDs that are passed/rounded to STARBOARD by default per the HYC tech
-// sheet (GREEN IALA marks). Others default to port.
-const STARBOARD_DEFAULT = new Set(["Y", "R"]);
-
-// Expand a compact course string like "ZWIHI" or "ZDUVH[V]" into tokens
-// like ["Zp", "Wp", "Ip", "Hp", "Ip"] — appending "p" for port, "s" for stbd.
-// Bracketed marks "[X]" are treated as a passing-only mark (rendered as port).
+// Course-string convention (mirrors the printed cards):
+//   UPPERCASE letter  → mark in RED on the card → rounded / passed to PORT
+//   lowercase letter  → mark in GREEN underlined on the card → STARBOARD
+//   [X] or [x]        → bracketed passing mark on the Wednesday card —
+//                       treated like a port-side waypoint for plotting
 function expandCourse(s) {
   if (!s || !s.trim()) return [];
   const out = [];
-  // Convert "[X]" → "X" (passing marks rendered same as rounding for plotting)
-  const cleaned = s.replace(/\[(.)\]/g, "$1");
+  // Strip the brackets but keep the case of the inner letter.
+  const cleaned = s.replace(/\[([A-Za-z])\]/g, "$1");
   for (const ch of cleaned) {
-    if (!/[A-Z]/.test(ch)) continue;
-    const side = STARBOARD_DEFAULT.has(ch) ? "s" : "p";
-    out.push(ch + side);
+    if (!/[A-Za-z]/.test(ch)) continue;
+    const isLower = ch >= "a" && ch <= "z";
+    const id = ch.toUpperCase();
+    const side = isLower ? "s" : "p";
+    out.push(id + side);
   }
   return out;
 }
@@ -838,18 +838,19 @@ const CC_TUE = {
   windDegrees: CV_WIND_DEGREES,
   numbers: [1,2,3,4],
   notes: "Marks RED → rounded/passed to PORT. GREEN underlined → STARBOARD. Finish line in the Sound, unless Line 30 / 40 is used or the race is shortened at a course mark.",
+  // UPPERCASE letter = port (RED), lowercase letter = starboard (GREEN underlined).
   courses: {
     A: ["ZWIHI",     "ZWIHIV",    "ZWIHPWIV",    "ZWCPWPCPWC"],
     B: ["ZWIVWC",    "ZWCHPC",    "ZWCHCVC",     "ZWCHCHC"],
-    C: ["ZWCVWC",    "ZWCHWC",    "ZWCVWHWC",    "ZWCHCVVC"],
-    D: ["ZVCVCVC",   "ZWCHV",     "ZWOVC",       "ZVWOVOWC"],
+    C: ["ZWCVWC",    "ZWCHWC",    "ZWCVWHWC",    "ZWCHCVvC"],
+    D: ["ZVCVCVC",   "ZWCHV",     "ZWOvC",       "ZVWOVOWC"],
     E: ["ZVCDVC",    "ZVCDVWC",   "ZVWOWC",      "ZVCDVWOV"],
     F: ["ZVWIWC",    "ZVWDVW",    "ZVWIWIV",     "ZVCDPDVIV"],
     G: ["ZVWIV",     "ZVWDVC",    "ZOPVPWC",     "ZVWDWIVC"],
     H: ["ZDVDVC",    "ZVPIVC",    "ZHPDVWC",     "ZVPIVWCVW"],
-    J: ["ZIVPC",     "ZVPIVWC",   "ZDPCVPC",     "ZVPCHDOV"],
+    J: ["ZIVPC",     "ZVPIVWC",   "ZDPCVPC",     "ZVPChDOV"],
     K: ["ZIHIV",     "ZIPWIV",    "ZVPWPCIV",    "ZVPCIHIHV"],
-    L: ["ZIPWV",     "ZIPWVCI",   "ZIVPWHC",     "ZIHCODOVI"],
+    L: ["ZIPWv",     "ZIPWvCi",   "ZIVPWhC",     "ZIHCoDOVi"],
     M: ["ZIVCVC",    "ZIHCIV",    "ZIHWIVC",     "ZIHCVCVWC"],
     N: ["ZCOVC",     "ZCVCHWC",   "ZCOCOV",      "ZCHWOCV"],
     P: ["ZCDVWC",    "ZCICIVWC",  "ZCOWCIC",     "ZCIHPWOVC"],
@@ -903,31 +904,34 @@ const CC_PIER = {
   windDegrees: PIER_WIND_DEGREES,
   numbers: [5,6,7,8],
   notes: "Pier Course-Board (Cruisers). Start lines: A = South Rowan, B = Finish, C = Howth Mark — set per board signal. Marks RED → PORT, GREEN underlined → STARBOARD. ROWAN ROCKS BUOY: pass to east and south. SPIT: pass to north and east except when a rounding mark.",
+  // Y = Ireland's Eye is GREEN underlined throughout the Pier card → starboard.
+  // Additional starboard letters per cell are encoded as lowercase to mirror
+  // the green-underlined letters printed on the Pier Course-Board.
   courses: {
-    "00": ["BYKY",   "BYKIHY",   "BYOIHKB",   "JOIHIHY"],
-    "01": ["BGY",    "JKDOGY",   "JKCHY",     "JKIAY"],
-    "03": ["JGY",    "JGIOY",    "JGIOCDY",   "JGIODEY"],
-    "04": ["JYIOY",  "JIEY",     "JWHY",      "JWAY"],
-    "06": ["JSGY",   "JSGKGY",   "JVEY",      "JWEY"],
-    "07": ["JYDGKY", "JYCGY",    "JYVOIGKY",  "JYWOIGY"],
-    "09": ["JYIKY",  "JYKY",     "JYWKY",     "JYWDWKY"],
-    "10": ["JYWY",   "JYPGY",    "JYWIWY",    "JYVWPKY"],
-    "12": ["JYVKY",  "JYPKY",    "JYHGVKY",   ""],
-    "13": ["JYVY",   "JYVDVY",   "JYUGY",     "JYVIPSVY"],
-    "15": ["BYHY",   "BYPY",     "BYUYB",     "BYHDHY"],
-    "16": ["BYDIY",  "BYVY",     "BYHY",      "BYHKVY"],
-    "18": ["BYODY",  "BYKBKB",   "BYOHSY",    "BYAY"],
-    "19": ["BYGY",   "BYEY",     "BYEKGY",    "BADODKY"],
-    "21": ["JGY",    "JOCOY",    "JACY",      "JUWOIY"],
-    "22": ["JOIY",   "JECY",     "JECOY",     "JEDEDY"],
-    "24": ["JGSY",   "JEVY",     "JEWY",      "JGSGSY"],
-    "25": ["JDCY",   "JGCK",     "JGCDCY",    "JEWY"],
-    "27": ["JKCKY",  "JGWY",     "JGWKIY",    "JGWKSY"],
-    "28": ["JYWY",   "JYWKIY",   "JKWIWY",    "JKWDWY"],
-    "30": ["JKVY",   "JKVDVY",   "JKPDVY",    "JGHKPY"],
-    "31": ["JKHKY",  "JKHIVY",   "JVDPY",     "JGUGOY"],
-    "33": ["JBXJ",   "JBJSPY",   "JHDIVY",    "JIKOKHY"],
-    "34": ["JDHY",   "JIUIY",    "JGAGY",     "JIUKOY"]
+    "00": ["ByKy",    "ByKIHy",   "ByOIHKB",   "JOIHIHy"],
+    "01": ["BGy",     "JKDOGy",   "JKCHy",     "JKIAy"],
+    "03": ["JGy",     "JGiOy",    "JGiOCDy",   "JGiODEy"],
+    "04": ["JyiOy",   "JIEy",     "JWHy",      "JWAy"],
+    "06": ["JSgy",    "JSGKgy",   "JVEy",      "JWEy"],
+    "07": ["JydGKy",  "JycGy",    "JyVOiGKy",  "JyWOIGy"],
+    "09": ["JyIKy",   "JyKy",     "JyWKy",     "JyWDWKy"],
+    "10": ["JyWy",    "JyPGy",    "JyWiWy",    "JyvWPKy"],
+    "12": ["JyvKy",   "JyPKy",    "JyhGVKy",   ""],
+    "13": ["JyVy",    "JyVdVy",   "JyuGy",     "JyVIPSvy"],
+    "15": ["ByHy",    "ByPy",     "ByUyB",     "ByHDHy"],
+    "16": ["ByDiy",   "ByVy",     "ByHy",      "ByHKVy"],
+    "18": ["ByOdy",   "ByKBKb",   "ByOHsy",    "ByAy"],
+    "19": ["ByGy",    "ByEy",     "ByEKgy",    "BADOdKy"],
+    "21": ["JGy",     "JOcOy",    "JaCy",      "JUWoIy"],
+    "22": ["JOIy",    "JEcy",     "JECoy",     "JEDEDy"],
+    "24": ["JGsy",    "JEvy",     "JEwy",      "JGsGsy"],
+    "25": ["JDcy",    "JGCK",     "JGCdCy",    "JEwy"],
+    "27": ["JKcKy",   "JGwy",     "JGwKIy",    "JGwKsy"],
+    "28": ["JyWy",    "JywKIy",   "JKwIWy",    "JKwDWy"],
+    "30": ["JKvy",    "JKVdVy",   "JKpDVy",    "JGhKPy"],
+    "31": ["JKhKy",   "JKHiVy",   "JVdPy",     "JGuGOy"],
+    "33": ["JBXJ",    "JBjSPy",   "JHdIVy",    "JiKOKHy"],
+    "34": ["JDhy",    "JiUIy",    "JGaGy",     "JiUkOy"]
   }
 };
 
@@ -1942,6 +1946,13 @@ window.addEventListener("load", () => {
     leafletMap.invalidateSize();
   } else if (leafletReady()) {
     // Leaflet finished loading after our first renderAll — redraw to add the map
+    renderAll();
+  }
+});
+</script>
+</body>
+</html>
+— redraw to add the map
     renderAll();
   }
 });
